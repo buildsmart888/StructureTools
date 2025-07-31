@@ -1,0 +1,42 @@
+{
+  "test_suite": "Load Combination System",
+  "timestamp": "2025-07-31T22:53:49.204428",
+  "environment": {
+    "python_version": "3.13.5 (tags/v3.13.5:6cb20a2, Jun 11 2025, 16:15:46) [MSC v.1943 64 bit (AMD64)]",
+    "platform": "win32",
+    "project_root": "D:\\OneDrive - Thaniyagroup\\GitHub\\StructureTools"
+  },
+  "results": {
+    "unit_tests": {
+      "tests_run": 24,
+      "failures": 0,
+      "errors": 0,
+      "success_rate": 100.0,
+      "duration": 0.6286303997039795,
+      "successful": true
+    },
+    "performance_tests": {
+      "tests_run": 5,
+      "failures": 0,
+      "errors": 0,
+      "duration": 0.21123433113098145,
+      "successful": true
+    },
+    "stress_tests": {
+      "tests_run": 3,
+      "failures": 1,
+      "errors": 0,
+      "duration": 0.01149296760559082,
+      "successful": false
+    },
+    "integration_tests": null
+  },
+  "summary": {
+    "total_tests": 32,
+    "total_failures": 1,
+    "total_errors": 0,
+    "total_duration": 0.8513576984405518,
+    "success_rate": 96.875,
+    "overall_success": false
+  }
+}
