@@ -20,6 +20,12 @@ def show_error_message(msg):
     msg_box.setStandardButtons(QtWidgets.QMessageBox.Ok)
     msg_box.exec_()
 
+from .core.mapping import map_nodes, map_members
+from .core.materials import set_materials_and_sections
+from .core.loads import apply_loads
+from .core.supports import apply_supports
+
+
 class Calc:
 	def __init__(self, obj, elements):
 		obj.Proxy = self
@@ -65,170 +71,7 @@ class Calc:
 		obj.addProperty("App::PropertyInteger", "NumPointsDeflection", "NumPoints", "Presizão dos gráficos").NumPointsDeflection = 4
 
 
-	#  Mapeia os nós da estrutura, (inverte o eixo y e z para adequação as coordenadas do sover)
-	def mapNodes(self, elements, unitLength):	
-		# Varre todos os elementos de linha e adiciona seus vertices à tabela de nodes
-		listNodes = []
-		for element in elements:
-			for edge in element.Shape.Edges:
-				for vertex in edge.Vertexes:
-					node = [round(float(FreeCAD.Units.Quantity(vertex.Point.x,'mm').getValueAs(unitLength)), 2), round(float(FreeCAD.Units.Quantity(vertex.Point.z,'mm').getValueAs(unitLength)),2), round(float(FreeCAD.Units.Quantity(vertex.Point.y,'mm').getValueAs(unitLength)),2)]
-					if not node in listNodes:
-						listNodes.append(node)
 
-		return listNodes
-
-	# Mapeia os membros da estrutura 
-	def mapMembers(self, elements, listNodes, unitLength):
-		listMembers = {}
-		for element in elements:
-			for i, edge in enumerate(element.Shape.Edges):
-				listIndexVertex = []
-				for vertex in edge.Vertexes:
-					node = [round(float(FreeCAD.Units.Quantity(vertex.Point.x,'mm').getValueAs(unitLength)), 2), round(float(FreeCAD.Units.Quantity(vertex.Point.z,'mm').getValueAs(unitLength)),2), round(float(FreeCAD.Units.Quantity(vertex.Point.y,'mm').getValueAs(unitLength)),2)]
-					index = listNodes.index(node)
-					listIndexVertex.append(index)
-
-				# valida se o primeiro nó é mais auto do que o segundo nó, se sim inverte os nós do membro (necessário para manter os diagramas voltados para a posição correta)
-				n1 = listIndexVertex[0]
-				n2 = listIndexVertex[1]
-				if listNodes[n1][1] > listNodes[n2][1]:
-					aux = n1
-					n1 = n2
-					n2 = aux
-				listMembers[element.Name + '_' + str(i)] = {
-					'nodes': [str(n1), str(n2)],
-					'material': element.MaterialMember.Name,
-					'section': element.SectionMember.Name,
-					'trussMember': element.TrussMember
-					}
-		
-		return listMembers
-
-	# Cria os nós no modelo do solver
-	def setNodes(self, model, nodes_map):
-		for i, node in enumerate(nodes_map):
-			model.add_node(str(i), node[0], node[1], node[2])
-		
-		return model
-
-	# Cria os membros no modelo do solver
-	def setMembers(self, model, members_map,selfWeight):
-		for memberName in list(members_map):			
-			model.add_member(memberName, members_map[memberName]['nodes'][0] , members_map[memberName]['nodes'][1], members_map[memberName]['material'], members_map[memberName]['section'])
-			
-			#Considera o peso proprio nos elementos de barra
-			if selfWeight : model.add_member_self_weight('FY', -1) 
-
-			#libera as rotações na extremidades do elemento a fim de emular ocomportamento de barras de treliça
-			if members_map[memberName]['trussMember']: model.def_releases(memberName, Dxi=False, Dyi=False, Dzi=False, Rxi=False, Ryi=True, Rzi=True, Dxj=False, Dyj=False, Dzj=False, Rxj=False, Ryj=True, Rzj=True)
-		
-		return model
-
-	# Cria os carregamentos
-	def setLoads(self, model, loads, nodes_map, unitForce, unitLength):
-		pass
-		for load in loads:
-
-			match load.GlobalDirection:
-				case '+X':
-					axis = 'FX'
-					direction = 1
-
-				case '-X':
-					axis = 'FX'
-					direction = -1
-
-				case '+Y':
-					axis = 'FZ'
-					direction = 1
-
-				case '-Y':
-					axis = 'FZ'
-					direction = -1
-
-				case '+Z':
-					axis = 'FY'
-					direction = 1
-
-				case '-Z':
-					axis = 'FY'
-					direction = -1
-
-			# Valida se o carregamento é distribuido
-			if 'Edge' in load.ObjectBase[0][1][0]:
-				initial = float(load.InitialLoading.getValueAs(unitForce))
-				final = float(load.FinalLoading.getValueAs(unitForce))
-
-				subname = int(load.ObjectBase[0][1][0].split('Edge')[1]) - 1
-				name = load.ObjectBase[0][0].Name + '_' + str(subname)
-				model.add_member_dist_load(name, axis, initial * direction, final * direction)
-
-			# Valida se o carregamento é nodal
-			elif 'Vertex' in load.ObjectBase[0][1][0]:
-				numVertex = int(load.ObjectBase[0][1][0].split('Vertex')[1]) - 1
-				vertex = load.ObjectBase[0][0].Shape.Vertexes[numVertex]
-				
-				node = list(filter(lambda element: element == [round(float(FreeCAD.Units.Quantity(vertex.Point.x,'mm').getValueAs(unitLength)), 2), round(float(FreeCAD.Units.Quantity(vertex.Point.z,'mm').getValueAs(unitLength)),2), round(float(FreeCAD.Units.Quantity(vertex.Point.y,'mm').getValueAs(unitLength)),2)], nodes_map))[0]
-				indexNode = nodes_map.index(node)
-
-				# subname = int(load.ObjectBase[0][1][0].split('Vertex')[1]) - 1
-				name = str(indexNode)
-				model.add_node_load(name, axis, float(load.NodalLoading.getValueAs(unitForce)) * direction)
-			
-
-					
-		return model
-
-	# Cria os suportes
-	def setSuports(self, model, suports, nodes_map, unitLength):
-		for suport in suports:
-			suportvertex = list(suport.ObjectBase[0][0].Shape.Vertexes[int(suport.ObjectBase[0][1][0].split('Vertex')[1])-1].Point)
-			for i, node in enumerate(nodes_map):
-				if round(float(FreeCAD.Units.Quantity(suportvertex[0],'mm').getValueAs(unitLength)),2) == round(node[0],2) and round(float(FreeCAD.Units.Quantity(suportvertex[1],'mm').getValueAs(unitLength)),2) == round(node[2],2) and round(float(FreeCAD.Units.Quantity(suportvertex[2],'mm').getValueAs(unitLength)),2) == round(node[1],2):					
-					name = str(i)
-					model.def_support(name, suport.FixTranslationX, suport.FixTranslationZ, suport.FixTranslationY, suport.FixRotationX, suport.FixRotationZ, suport.FixRotationY)
-					break
-		
-		return model
-
-	def setMaterialAndSections(self, model, lines, unitLength, unitForce):
-		materiais = []
-		sections = []
-		for line in lines:
-			material = line.MaterialMember
-			section = line.SectionMember
-
-			if not material.Name in materiais:
-				density = FreeCAD.Units.Quantity(material.Density).getValueAs('t/m^3') * 10 #Converte a unidade de entrada em t/m³ e na sequencia converte em kN/m³
-				density = float(FreeCAD.Units.Quantity(density, 'kN/m^3').getValueAs(unitForce+"/"+unitLength+"^3")) #Converte kN/m³ para as unidades definidas no calc
-				modulusElasticity = float(material.ModulusElasticity.getValueAs(unitForce+"/"+unitLength+"^2"))
-				poissonRatio = float(material.PoissonRatio)
-				G = modulusElasticity / (2 * (1 + poissonRatio))
-				model.add_material(material.Name, modulusElasticity, G, poissonRatio, density)
-				materiais.append(material.Name)
-				
-
-			if not section.Name in sections:
-
-				ang = line.RotationSection.getValueAs('rad')
-				J  = float(FreeCAD.Units.Quantity(section.MomentInertiaPolar, 'mm^4').getValueAs(unitLength+"^4"))
-				A  = float(section.AreaSection.getValueAs(unitLength+"^2"))
-				Iy = float(FreeCAD.Units.Quantity(section.MomentInertiaY, 'mm^4').getValueAs(unitLength+"^4"))
-				Iz = float(FreeCAD.Units.Quantity(section.MomentInertiaZ, 'mm^4').getValueAs(unitLength+"^4"))
-				Iyz = float(FreeCAD.Units.Quantity(section.ProductInertiaYZ, 'mm^4').getValueAs(unitLength+"^4"))
-
-				
-				# Aplica a rotação de eixo
-				RIy = ((Iz + Iy) / 2 ) - ((Iz - Iy) / 2 )*math.cos(2 * ang) + Iyz * math.sin(2 * ang)
-				RIz = ((Iz + Iy) / 2 ) + ((Iz - Iy) / 2 )*math.cos(2 * ang) - Iyz * math.sin(2 * ang)
-				
-				model.add_section(section.Name, A, RIy, RIz, J)
-				sections.append(section.Name)
-		
-		return model
-
-	
 	def execute(self, obj):
 		model = FEModel3D()
 		# Filtra os diferentes tipos de elementos
@@ -236,99 +79,73 @@ class Calc:
 		loads = list(filter(lambda element: 'Load' in element.Name, obj.ListElements))
 		suports = list(filter(lambda element: 'Suport' in element.Name, obj.ListElements))
 
-		nodes_map = self.mapNodes(lines, obj.LengthUnit)
-		members_map = self.mapMembers(lines, nodes_map, obj.LengthUnit)
+		# Mapping using core utilities
+		nodes_map = map_nodes(lines)
+		members_map = map_members(lines, nodes_map)
 
-		model = self.setMaterialAndSections(model, lines, obj.LengthUnit, obj.ForceUnit)
-		model = self.setNodes(model, nodes_map)
-		model = self.setMembers(model, members_map, obj.selfWeight)
-		model = self.setLoads(model, loads, nodes_map, obj.ForceUnit, obj.LengthUnit)
-		model = self.setSuports(model, suports, nodes_map, obj.LengthUnit)
+		# Materials & sections
+		model = set_materials_and_sections(model, lines, obj.LengthUnit, obj.ForceUnit)
+
+		# Nodes and members
+		for i, node in enumerate(nodes_map):
+			model.add_node(str(i), node[0], node[1], node[2])
+		for memberName, data in members_map.items():
+			model.add_member(memberName, data['nodes'][0], data['nodes'][1], data['material'], data['section'])
+			if obj.selfWeight:
+				model.add_member_self_weight('FY', -1)
+			if data['trussMember']:
+				model.def_releases(memberName, Dxi=False, Dyi=False, Dzi=False, Rxi=False, Ryi=True, Rzi=True, Dxj=False, Dyj=False, Dzj=False, Rxj=False, Ryj=True, Rzj=True)
+
+		# Loads and supports
+		model = apply_loads(model, loads, nodes_map, obj.ForceUnit, obj.LengthUnit)
+		model = apply_supports(model, suports, nodes_map, obj.LengthUnit)
 
 		model.analyze()
 
-		# Gera os resultados
-		momentz = []
-		momenty = []
-		mimMomenty = []
-		mimMomentz = []
-		maxMomenty = []
-		maxMomentz = []
-		axial = []
-		torque = []
-		minTorque = []
-		maxTorque = []
-		sheary = []
-		shearz = []
-		minSheary = []
-		maxSheary = []
-		minShearz = []
-		maxShearz = []
-		deflectiony = []
-		minDeflectiony = []
-		maxDeflectiony = []
-		deflectionz = []
-		minDeflectionz = []
-		maxDeflectionz = []
-
-		for name in model.members.keys():			
-			momenty.append(','.join( str(value) for value in model.members[name].moment_array('My', obj.NumPointsMoment)[1]))
-			momentz.append(','.join( str(value) for value in model.members[name].moment_array('Mz', obj.NumPointsMoment)[1]))
-
-			sheary.append(','.join( str(value) for value in model.members[name].shear_array('Fy', obj.NumPointsShear)[1]))
-			shearz.append(','.join( str(value) for value in model.members[name].shear_array('Fz', obj.NumPointsShear)[1]))
-
-			axial.append(','.join( str(value) for value in model.members[name].axial_array(obj.NumPointsAxial)[1]))
-			
-			torque.append(','.join( str(value) for value in model.members[name].torque_array(obj.NumPointsTorque)[1]))
-
-			deflectiony.append(','.join( str(value) for value in model.members[name].deflection_array('dy', obj.NumPointsDeflection)[1]))
-			deflectionz.append(','.join( str(value) for value in model.members[name].deflection_array('dz', obj.NumPointsDeflection)[1]))
-
-			mimMomenty.append(model.members[name].min_moment('My'))
-			mimMomentz.append(model.members[name].min_moment('Mz'))
-			maxMomenty.append(model.members[name].max_moment('My'))
-			maxMomentz.append(model.members[name].max_moment('Mz'))
-
-			minSheary.append(model.members[name].min_shear('Fy'))
-			minShearz.append(model.members[name].min_shear('Fz'))
-			maxSheary.append(model.members[name].max_shear('Fy'))
-			maxShearz.append(model.members[name].max_shear('Fz'))
-
-			minTorque.append(model.members[name].min_torque())
-			maxTorque.append(model.members[name].max_torque())
-
-			minDeflectiony.append(model.members[name].min_deflection('dy'))
-			minDeflectionz.append(model.members[name].min_deflection('dz'))
-			maxDeflectiony.append(model.members[name].max_deflection('dy'))
-			maxDeflectionz.append(model.members[name].max_deflection('dz'))
-			
-			
-
+		from .core.results import collect_member_results
+		from .core.results import build_results_bundle
+		res = collect_member_results(
+			model,
+			num_moment=obj.NumPointsMoment,
+			num_shear=obj.NumPointsShear,
+			num_axial=obj.NumPointsAxial,
+			num_torque=obj.NumPointsTorque,
+			num_deflection=obj.NumPointsDeflection,
+		)
+		# Structured bundle (new API) retained for future JSON export (not yet stored in object)
+		_structured = build_results_bundle(
+			model,
+			num_moment=obj.NumPointsMoment,
+			num_shear=obj.NumPointsShear,
+			num_axial=obj.NumPointsAxial,
+			num_torque=obj.NumPointsTorque,
+			num_deflection=obj.NumPointsDeflection,
+		)
 		obj.NameMembers = model.members.keys()
 		obj.Nodes = [FreeCAD.Vector(node[0], node[2], node[1]) for node in nodes_map]
-		obj.MomentZ = momentz
-		obj.MomentY = momenty
-		obj.MinMomentY = mimMomenty
-		obj.MinMomentZ = mimMomentz
-		obj.MaxMomentY = maxMomenty
-		obj.MaxMomentZ = maxMomentz
-		obj.AxialForce = axial
-		obj.Torque = torque
-		obj.MinTorque = minTorque
-		obj.MaxTorque = maxTorque
-		obj.MinShearY = minSheary
-		obj.MinShearZ = minShearz
-		obj.MaxShearY = maxSheary
-		obj.MaxShearZ = maxShearz
-		obj.ShearY = sheary
-		obj.ShearZ = shearz
-		obj.DeflectionY = deflectiony
-		obj.DeflectionZ = deflectionz
-		obj.MinDeflectionY = minDeflectiony
-		obj.MinDeflectionZ = minDeflectionz
-		obj.MaxDeflectionY = maxDeflectiony
-		obj.MaxDeflectionZ = maxDeflectionz
+		# Convert list[list[float]] back to legacy string form for FreeCAD property compatibility
+		obj.MomentZ = [','.join(str(v) for v in arr) for arr in res['momentz']]
+		obj.MomentY = [','.join(str(v) for v in arr) for arr in res['momenty']]
+		obj.MinMomentY = res['mimMomenty']
+		obj.MinMomentZ = res['mimMomentz']
+		obj.MaxMomentY = res['maxMomenty']
+		obj.MaxMomentZ = res['maxMomentz']
+		obj.AxialForce = [','.join(str(v) for v in arr) for arr in res['axial']]
+		obj.Torque = [','.join(str(v) for v in arr) for arr in res['torque']]
+		obj.MinTorque = res['minTorque']
+		obj.MaxTorque = res['maxTorque']
+		obj.MinShearY = res['minSheary']
+		obj.MinShearZ = res['minShearz']
+		obj.MaxShearY = res['maxSheary']
+		obj.MaxShearZ = res['maxShearz']
+		obj.ShearY = [','.join(str(v) for v in arr) for arr in res['sheary']]
+		obj.ShearZ = [','.join(str(v) for v in arr) for arr in res['shearz']]
+		obj.DeflectionY = [','.join(str(v) for v in arr) for arr in res['deflectiony']]
+		obj.DeflectionZ = [','.join(str(v) for v in arr) for arr in res['deflectionz']]
+		obj.MinDeflectionY = res['minDeflectiony']
+		obj.MinDeflectionZ = res['minDeflectionz']
+		obj.MaxDeflectionY = res['maxDeflectiony']
+		obj.MaxDeflectionZ = res['maxDeflectionz']
 		
 	   
 

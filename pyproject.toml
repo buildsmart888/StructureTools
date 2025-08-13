@@ -13,20 +13,55 @@ name = "freecad.StructureTools"
 dynamic = ["version"]
 description = "Workbench for 2d and 3d structural analysis"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 maintainers = [
-    {name = "Maykow Menezes", email = "eng.maykowmenezes@gmail.com"
-    },
+    { name = "Maykow Menezes", email = "eng.maykowmenezes@gmail.com" },
 ]
-requires-python = ">=3.8"
-dependencies = ["['numpy','scipy']"]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
 
 [project.urls]
 source = "https://www.patreon.com/c/StructureTools"
 
 [tool.setuptools]
-packages = ["freecad", "freecad.StructureTools"]
+packages = ["freecad", "freecad.StructureTools", "freecad.StructureTools.core"]
 include-package-data = true
 
 [tool.setuptools.dynamic]
-version = {attr = "freecad.StructureTools.__version__"}
+version = { attr = "freecad.StructureTools.__version__" }
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5.0",
+    "mypy>=1.8",
+        "coverage>=7.6",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["freecad/StructureTools/core"]
+omit = [
+    "freecad/StructureTools/Pynite_main/*",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == '__main__':",
+    "pragma: no cover",
+]

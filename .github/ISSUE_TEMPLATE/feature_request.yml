@@ -1,0 +1,41 @@
+name: Feature Request
+description: Suggest an idea or enhancement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for contributing an idea!
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One-line summary of the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation / Problem
+      description: What problem does this solve? Why is it important?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Outline the solution/API changes.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: This is not a duplicate
+          required: true
+        - label: I would be willing to help implement
+          required: false

@@ -1,0 +1,53 @@
+name: Bug Report
+description: Report a bug in StructureTools
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please fill out the sections below.
+  - type: input
+    id: version
+    attributes:
+      label: Package Version
+      description: Output of `python -c "import freecad.StructureTools as st; print(st.__version__)"`
+    validations:
+      required: true
+  - type: input
+    id: freecad
+    attributes:
+      label: FreeCAD Version
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction Steps
+      description: Minimal steps/code to reproduce the issue.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Logs / Traceback
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues
+          required: true
+        - label: I can reproduce with the latest commit on the improvement branch
+          required: true

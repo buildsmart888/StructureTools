@@ -1,18 +1,11 @@
-from setuptools import setup
-import os
+"""Legacy stub.
 
-version_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                            "freecad", "StructureTools", "version.py")
-with open(version_path) as fp:
-    exec(fp.read())
+This project now uses pyproject.toml (PEP 621). This file remains only to
+signal legacy users; do not rely on it. Use:
 
-setup(name='freecad.StructureTools',
-      version=str(__version__),
-      packages=['freecad',
-                'freecad.StructureTools'],
-      maintainer="Maykow Menezes",
-      maintainer_email="eng.maykowmenezes@gmail.com",
-      url="https://www.patreon.com/c/StructureTools",
-      description="Workbench for 2d and 3d structural analysis",
-      install_requires=['numpy','scipy'],
-      include_package_data=True)
+    pip install .
+
+which will invoke setuptools via build-system table.
+"""
+
+raise SystemExit("Use pyproject.toml based build; setup.py is deprecated here.")
